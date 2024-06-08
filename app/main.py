@@ -10,6 +10,7 @@ def create_tmp_dir(command):
     shutil.copy(command, tmp_dir)
     os.chroot(tmp_dir)
     command = os.path.join("/", os.path.basename(command))
+    print(command)
 
 
 def main():
