@@ -7,9 +7,9 @@ import tempfile
 
 def create_tmp_dir(command):
     tmp_dir = tempfile.mkdtemp()
-    shutil.copy(command, tmp_dir)
+    shutil.copy(command, f"{tmp_dir}/{command}")
     os.chroot(tmp_dir)
-    command = os.path.join("/", os.path.basename(command))
+    command = os.path.join(tmp_dir, os.path.basename(command))
     print(command)
 
 
