@@ -3,7 +3,7 @@ import sys
 import os
 
 def create_tmp_dir():
-    os.mkdir("/tmp/runner")
+    os.makedirs("/tmp/runner", exist_ok=True)
     os.chroot("/tmp/runner")
 
 def main():
