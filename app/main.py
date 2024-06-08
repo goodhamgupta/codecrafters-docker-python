@@ -6,9 +6,9 @@ import tempfile
 
 
 def create_tmp_dir(command):
-    tmp_dir = tempfile.mkdtemp()
-    os.makedirs(os.path.join(tmp_dir, "/usr/local/bin"), exist_ok=True)
-    combined_path = os.path.join(tmp_dir, "/usr/local/bin", os.path.basename(command))
+    tmp_dir = tempfile.TemporaryDirectory()
+    os.makedirs(os.path.join(tmp_dir.name, "/usr/local/bin"), exist_ok=True)
+    combined_path = os.path.join(tmp_dir.name, "/usr/local/bin", os.path.basename(command))
     print(combined_path)
     print(os.listdir(combined_path))
     shutil.copy(command, f"{tmp_dir}{command}")
