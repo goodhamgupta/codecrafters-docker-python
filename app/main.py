@@ -7,12 +7,9 @@ import tempfile
 
 def create_tmp_dir(command):
     tmp_dir = tempfile.TemporaryDirectory()
-    os.makedirs(os.path.join(tmp_dir.name, "/usr/local/bin"), exist_ok=True)
-    os.listdir(f"{tmp_dir.name}/usr/local")
-    shutil.copy(command, f"{tmp_dir}{command}")
-    os.chroot(tmp_dir)
-    command = os.path.join(tmp_dir, os.path.basename(command))
-    print(command)
+    os.makedirs(os.path.join(tmp_dir.name, "usr/local/bin"), exist_ok=True)
+    shutil.copy(command, f"{tmp_dir.name}{command}")
+    os.chroot(tmp_dir.name)
 
 
 def main():
