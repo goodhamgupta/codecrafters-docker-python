@@ -7,7 +7,7 @@ import shutil
 def create_tmp_dir():
     os.makedirs("/tmp/runner", exist_ok=True)
     os.chroot("/tmp/runner")
-    shutil.copy("/usr/local/bin/docker-explorer", "/tmp/runner/docker-explorer")
+    shutil.copy("~/.local/bin/docker-explorer", "/usr/bin/local/docker-explorer")
 
 
 def main():
