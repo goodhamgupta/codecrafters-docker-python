@@ -1,10 +1,14 @@
 import subprocess
 import sys
 import os
+import shutil
+
 
 def create_tmp_dir():
     os.makedirs("/tmp/runner", exist_ok=True)
     os.chroot("/tmp/runner")
+    shutil.copy("/usr/local/bin/docker-explorer", "/tmp/runner/docker-explorer")
+
 
 def main():
     command = sys.argv[3]
@@ -14,6 +18,7 @@ def main():
     print(completed_process.stdout.decode("utf-8").strip())
     sys.stderr.write(completed_process.stderr.decode("utf-8"))
     sys.exit(completed_process.returncode)
+
 
 if __name__ == "__main__":
     main()
