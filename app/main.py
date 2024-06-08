@@ -2,19 +2,20 @@ import subprocess
 import sys
 import os
 import shutil
+import tempfile
 
 
-def create_tmp_dir():
-    tmp_dir = "/tmp/runner"
-    os.makedirs(tmp_dir, exist_ok=True)
-    shutil.copy("/usr/local/bin/docker-explorer", f"{tmp_dir}/docker-explorer")
+def create_tmp_dir(command):
+    tmp_dir = tempfile.mkdtemp()
+    shutil.copy(command, tmp_dir)
     os.chroot(tmp_dir)
+    command = os.path.join("/", os.path.basename(command))
 
 
 def main():
     command = sys.argv[3]
     args = sys.argv[4:]
-    create_tmp_dir()
+    create_tmp_dir(command)
     completed_process = subprocess.run([command, *args], capture_output=True)
     print(completed_process.stdout.decode("utf-8").strip())
     sys.stderr.write(completed_process.stderr.decode("utf-8"))
