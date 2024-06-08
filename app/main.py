@@ -7,6 +7,8 @@ def create_tmp_dir():
     os.mkdir("/tmp/runner")
     os.chroot("/tmp/runner")
     shutil.copy("/usr/local/bin/docker-explorer", "/tmp/runner/docker-explorer")
+    os.symlink("/usr/local/bin/docker-explorer", "/tmp/runner/docker-explorer")
+
 
 def main():
     command = sys.argv[3]
