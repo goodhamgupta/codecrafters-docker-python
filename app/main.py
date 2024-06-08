@@ -1,14 +1,10 @@
 import subprocess
 import sys
 import os
-import shutil
 
 def create_tmp_dir():
-    print("Old root: ", os.getcwd())
     os.mkdir("/tmp/runner")
     os.chroot("/tmp/runner")
-    print("New root: ", os.getcwd())
-
 
 def main():
     command = sys.argv[3]
