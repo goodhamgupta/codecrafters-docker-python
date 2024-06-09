@@ -3,6 +3,7 @@ import sys
 import os
 import shutil
 import tempfile
+import ctypes
 
 
 def create_tmp_dir(command):
@@ -16,6 +17,8 @@ def main():
     command = sys.argv[3]
     args = sys.argv[4:]
     create_tmp_dir(command)
+    libc = ctypes.cdll.LoadLibrary("libc.so.6")
+    libc.unshare(0x200000)
     completed_process = subprocess.run([command, *args], capture_output=True)
     print(completed_process.stdout.decode("utf-8").strip())
     sys.stderr.write(completed_process.stderr.decode("utf-8"))
