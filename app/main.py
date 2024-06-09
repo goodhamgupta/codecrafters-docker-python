@@ -6,6 +6,7 @@ import tempfile
 import ctypes
 import urllib.request
 import json
+import time
 
 
 def create_tmp_dir(command):
@@ -21,7 +22,6 @@ def create_tmp_dir(command):
     tmp_dir = tempfile.TemporaryDirectory()
     path = f"{tmp_dir.name}{'/'.join(command.split('/')[:-1])}"
     os.makedirs(path, exist_ok=True)
-    print("PATH: ", path)
     libc = ctypes.cdll.LoadLibrary("libc.so.6")
     libc.unshare(0x20000000)  # CLONE_NEWNS | CLONE_NEWPID
     shutil.copy(command, f"{tmp_dir.name}{command}")
@@ -81,23 +81,27 @@ def pull_layer(repository, digest, auth_token, save_path):
     print("PULL LAYER URL: ", url)
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {auth_token}")
+    print(req.headers)
     max_retries = 3
     retry_count = 0
     while retry_count < max_retries:
         try:
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=600) as response:
                 if response.status != 200:
                     raise Exception(f'Failed to get layer: {response.status} {response.reason}')
 
+                print("RESPONSE STATUS: ", response.status)
                 with open(save_path, 'wb') as f:
                     f.write(response.read())
                 return
         except urllib.error.URLError as e:
             retry_count += 1
             print(f"Error occurred while pulling layer: {e}. Retrying ({retry_count}/{max_retries})...")
+            time.sleep(1)  # Add a small delay before retrying
+        except Exception as e:
+            raise Exception(f"Unexpected error occurred while pulling layer: {e}")
 
     raise Exception(f"Failed to pull layer after {max_retries} retries.")
-
 def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
     """
     Pulls the layers of a Docker image and saves them to the specified temporary directory.
@@ -112,6 +116,7 @@ def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
     """
     print("Pulling layers... Manifest: ", manifest)
     for layer in manifest['layers']:
+        print(layer)
         digest = layer['digest']
         filename = digest.replace(':', '_')  # Replace ':' with '_' for valid filenames
         save_path = os.path.join(tmp_dir_name, filename)
