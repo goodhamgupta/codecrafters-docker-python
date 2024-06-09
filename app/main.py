@@ -81,13 +81,22 @@ def pull_layer(repository, digest, auth_token, save_path):
     print("PULL LAYER URL: ", url)
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {auth_token}")
-    print(req.headers)
-    with urllib.request.urlopen(req) as response:
-        if response.status != 200:
-            raise Exception(f'Failed to get layer: {response.status} {response.reason}')
+    max_retries = 3
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            with urllib.request.urlopen(req) as response:
+                if response.status != 200:
+                    raise Exception(f'Failed to get layer: {response.status} {response.reason}')
 
-        with open(save_path, 'wb') as f:
-            f.write(response.read())
+                with open(save_path, 'wb') as f:
+                    f.write(response.read())
+                return
+        except urllib.error.URLError as e:
+            retry_count += 1
+            print(f"Error occurred while pulling layer: {e}. Retrying ({retry_count}/{max_retries})...")
+
+    raise Exception(f"Failed to pull layer after {max_retries} retries.")
 
 def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
     """
