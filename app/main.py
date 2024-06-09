@@ -19,11 +19,14 @@ def create_tmp_dir(command):
         None
     """
     tmp_dir = tempfile.TemporaryDirectory()
-    os.makedirs(os.path.join(tmp_dir.name, "usr/local/bin"), exist_ok=True)
+    path = f"{tmp_dir.name}{'/'.join(command.split('/')[:-1])}"
+    os.makedirs(path, exist_ok=True)
+    print("PATH: ", path)
     libc = ctypes.cdll.LoadLibrary("libc.so.6")
     libc.unshare(0x20000000)  # CLONE_NEWNS | CLONE_NEWPID
     shutil.copy(command, f"{tmp_dir.name}{command}")
     os.chroot(tmp_dir.name)
+    return tmp_dir.name
 
 def generate_auth_token(image_name):
     """
@@ -61,6 +64,51 @@ def fetch_image_manifest(auth_token, image_name):
     print(manifest)
     return manifest
 
+def pull_layer(repository, digest, auth_token, save_path):
+    """
+    Pulls a single layer of a Docker image and saves it to the specified path.
+
+    Args:
+        repository (str): The name of the Docker image repository.
+        digest (str): The digest of the layer to be pulled.
+        auth_token (str): The authentication token for accessing the Docker image.
+        save_path (str): The path where the pulled layer will be saved.
+
+    Returns:
+        None
+    """
+    url = f'https://registry-1.docker.io/v2/library/{repository}/blobs/{digest}'
+    print("PULL LAYER URL: ", url)
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", f"Bearer {auth_token}")
+    print(req.headers)
+    with urllib.request.urlopen(req) as response:
+        if response.status != 200:
+            raise Exception(f'Failed to get layer: {response.status} {response.reason}')
+
+        with open(save_path, 'wb') as f:
+            f.write(response.read())
+
+def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
+    """
+    Pulls the layers of a Docker image and saves them to the specified temporary directory.
+
+    Args:
+        image_name (str): The name of the Docker image.
+        tmp_dir_name (str): The name of the temporary directory where the layers will be saved.
+        manifest (dict): The manifest of the Docker image containing the layers information.
+
+    Returns:
+        None
+    """
+    print("Pulling layers... Manifest: ", manifest)
+    for layer in manifest['layers']:
+        digest = layer['digest']
+        filename = digest.replace(':', '_')  # Replace ':' with '_' for valid filenames
+        save_path = os.path.join(tmp_dir_name, filename)
+        print(f'Pulling layer {digest}...')
+        pull_layer(image_name, digest, auth_token, save_path)
+        print(f'Saved to {save_path}')
 
 def main():
     """
@@ -76,7 +124,8 @@ def main():
     args = sys.argv[4:]
     token = generate_auth_token(sys.argv[2])
     manifest = fetch_image_manifest(token, sys.argv[2])
-    create_tmp_dir(command)
+    tmp_dir_name = create_tmp_dir(command)
+    pull_layers(sys.argv[2], tmp_dir_name, token, manifest)
     completed_process = subprocess.run([command, *args], capture_output=True)
     print(completed_process.stdout.decode("utf-8").strip())
     sys.stderr.write(completed_process.stderr.decode("utf-8"))
