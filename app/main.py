@@ -6,7 +6,7 @@ import tempfile
 import ctypes
 import urllib.request
 import json
-import time
+import urllib.error
 
 
 def create_tmp_dir(command):
@@ -54,14 +54,12 @@ def fetch_image_manifest(auth_token, image_name):
     Returns:
         dict: The manifest of the Docker image.
     """
-    manifest_type = "application/vnd.docker.distribution.manifest.v2+json"
     url = f"https://registry-1.docker.io/v2/library/{image_name}/manifests/latest"
+    print("MANIFEST URL: ", url)
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {auth_token}")
-    req.add_header("Accept", manifest_type)
     with urllib.request.urlopen(req) as response:
         manifest = json.loads(response.read().decode())
-    print(manifest)
     return manifest
 
 def pull_layer(repository, digest, auth_token, save_path):
@@ -81,27 +79,14 @@ def pull_layer(repository, digest, auth_token, save_path):
     print("PULL LAYER URL: ", url)
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {auth_token}")
-    print(req.headers)
-    max_retries = 3
-    retry_count = 0
-    while retry_count < max_retries:
-        try:
-            with urllib.request.urlopen(req, timeout=600) as response:
-                if response.status != 200:
-                    raise Exception(f'Failed to get layer: {response.status} {response.reason}')
+    with urllib.request.urlopen(req, timeout=600) as response:
+        if response.status != 200:
+            raise Exception(f'Failed to get layer: {response.status} {response.reason}')
 
-                print("RESPONSE STATUS: ", response.status)
-                with open(save_path, 'wb') as f:
-                    f.write(response.read())
-                return
-        except urllib.error.URLError as e:
-            retry_count += 1
-            print(f"Error occurred while pulling layer: {e}. Retrying ({retry_count}/{max_retries})...")
-            time.sleep(1)  # Add a small delay before retrying
-        except Exception as e:
-            raise Exception(f"Unexpected error occurred while pulling layer: {e}")
+        print("RESPONSE STATUS: ", response.status)
+        with open(save_path, 'wb') as f:
+            f.write(response.read())
 
-    raise Exception(f"Failed to pull layer after {max_retries} retries.")
 def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
     """
     Pulls the layers of a Docker image and saves them to the specified temporary directory.
@@ -115,9 +100,8 @@ def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
         None
     """
     print("Pulling layers... Manifest: ", manifest)
-    for layer in manifest['layers']:
-        print(layer)
-        digest = layer['digest']
+    for layer in manifest['fsLayers']:
+        digest = layer['blobSum']
         filename = digest.replace(':', '_')  # Replace ':' with '_' for valid filenames
         save_path = os.path.join(tmp_dir_name, filename)
         print(f'Pulling layer {digest}...')
