@@ -7,6 +7,7 @@ import ctypes
 import urllib.request
 import json
 import urllib.error
+import time
 
 
 def create_tmp_dir(command):
@@ -28,6 +29,7 @@ def create_tmp_dir(command):
     os.chroot(tmp_dir.name)
     return tmp_dir.name
 
+
 def generate_auth_token(image_name):
     """
     Generates an authentication token for accessing a Docker image.
@@ -41,7 +43,8 @@ def generate_auth_token(image_name):
     url = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/{image_name}:pull"
     response = urllib.request.urlopen(url)
     data = json.loads(response.read())
-    return data['token']
+    return data["token"]
+
 
 def fetch_image_manifest(auth_token, image_name):
     """
@@ -58,9 +61,13 @@ def fetch_image_manifest(auth_token, image_name):
     print("MANIFEST URL: ", url)
     req = urllib.request.Request(url)
     req.add_header("Authorization", f"Bearer {auth_token}")
-    with urllib.request.urlopen(req) as response:
-        manifest = json.loads(response.read().decode())
-    return manifest
+    try:
+        with urllib.request.urlopen(req) as response:
+            manifest = json.loads(response.read().decode())
+        return manifest
+    except urllib.error.URLError as e:
+        print(f"Error fetching image manifest: {e}. Retrying in 5 seconds...")
+
 
 def pull_layer(repository, digest, auth_token, save_path):
     """
@@ -75,17 +82,27 @@ def pull_layer(repository, digest, auth_token, save_path):
     Returns:
         None
     """
-    url = f'https://registry-1.docker.io/v2/library/{repository}/blobs/{digest}'
+    url = f"https://registry-1.docker.io/v2/library/{repository}/blobs/{digest}"
     print("PULL LAYER URL: ", url)
-    req = urllib.request.Request(url)
-    req.add_header("Authorization", f"Bearer {auth_token}")
-    with urllib.request.urlopen(req, timeout=600) as response:
-        if response.status != 200:
-            raise Exception(f'Failed to get layer: {response.status} {response.reason}')
+    print("AUTH TOKEN: ", auth_token)
+    headers = {
+        "Authorization": f"Bearer {auth_token.strip()}",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+        "Accept-Encoding": "gzip, deflate, br, tar",
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as response:
+            if response.status != 200:
+                raise Exception(
+                    f"Failed to get layer: {response.status} {response.reason}"
+                )
+            print("RESPONSE STATUS: ", response.status)
+            with open(save_path, "wb") as f:
+                f.write(response.read())
+    except urllib.error.URLError as e:
+        print(f"Error fetching layer: {e}")
 
-        print("RESPONSE STATUS: ", response.status)
-        with open(save_path, 'wb') as f:
-            f.write(response.read())
 
 def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
     """
@@ -100,13 +117,14 @@ def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
         None
     """
     print("Pulling layers... Manifest: ", manifest)
-    for layer in manifest['fsLayers']:
-        digest = layer['blobSum']
-        filename = digest.replace(':', '_')  # Replace ':' with '_' for valid filenames
+    for layer in manifest["fsLayers"]:
+        digest = layer["blobSum"]
+        filename = digest.replace(":", "_")  # Replace ':' with '_' for valid filenames
         save_path = os.path.join(tmp_dir_name, filename)
-        print(f'Pulling layer {digest}...')
+        print(f"Pulling layer {digest}...")
         pull_layer(image_name, digest, auth_token, save_path)
-        print(f'Saved to {save_path}')
+        print(f"Saved to {save_path}")
+
 
 def main():
     """
