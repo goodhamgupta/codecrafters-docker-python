@@ -10,7 +10,7 @@ import urllib.error
 import time
 
 
-def create_tmp_dir(command):
+def create_tmp_dir(command: str) -> str:
     """
     Creates a temporary directory and sets it up for executing the given command.
 
@@ -18,7 +18,7 @@ def create_tmp_dir(command):
         command (str): The command to be executed in the temporary directory.
 
     Returns:
-        None
+        str: The path of the created temporary directory.
     """
     tmp_dir = tempfile.TemporaryDirectory()
     path = f"{tmp_dir.name}{'/'.join(command.split('/')[:-1])}"
@@ -30,7 +30,7 @@ def create_tmp_dir(command):
     return tmp_dir.name
 
 
-def generate_auth_token(image_name):
+def generate_auth_token(image_name: str) -> str:
     """
     Generates an authentication token for accessing a Docker image.
 
@@ -46,7 +46,7 @@ def generate_auth_token(image_name):
     return data["token"]
 
 
-def fetch_image_manifest(auth_token, image_name):
+def fetch_image_manifest(auth_token: str, image_name: str) -> dict:
     """
     Fetches the manifest for a Docker image using an authentication token.
 
@@ -69,7 +69,7 @@ def fetch_image_manifest(auth_token, image_name):
         print(f"Error fetching image manifest: {e}. Retrying in 5 seconds...")
 
 
-def pull_layer(repository, digest, auth_token, save_path):
+def pull_layer(repository: str, digest: str, auth_token: str, save_path: str) -> None:
     """
     Pulls a single layer of a Docker image and saves it to the specified path.
 
@@ -104,13 +104,16 @@ def pull_layer(repository, digest, auth_token, save_path):
         print(f"Error fetching layer: {e}")
 
 
-def pull_layers(image_name, tmp_dir_name, auth_token, manifest):
+def pull_layers(
+    image_name: str, tmp_dir_name: str, auth_token: str, manifest: dict
+) -> None:
     """
     Pulls the layers of a Docker image and saves them to the specified temporary directory.
 
     Args:
         image_name (str): The name of the Docker image.
         tmp_dir_name (str): The name of the temporary directory where the layers will be saved.
+        auth_token (str): The authentication token for accessing the Docker image.
         manifest (dict): The manifest of the Docker image containing the layers information.
 
     Returns:
