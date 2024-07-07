@@ -2,6 +2,7 @@ import subprocess
 import sys
 import os
 import shutil
+import random
 import tempfile
 import ctypes
 import urllib.request
@@ -47,51 +48,44 @@ def generate_auth_token(image_name: str) -> str:
 
 
 def fetch_image_manifest(auth_token: str, image_name: str) -> dict:
-    """
-    Fetches the manifest for a Docker image using an authentication token.
-
-    Args:
-        auth_token (str): The authentication token.
-        image_name (str): The name of the Docker image.
-
-    Returns:
-        dict: The manifest of the Docker image.
-    """
-    url = f"https://registry-1.docker.io/v2/library/{image_name}/manifests/latest"
+    url = f"https://registry.hub.docker.com/v2/library/{image_name}/manifests/latest"
     print("MANIFEST URL: ", url)
-    req = urllib.request.Request(url)
-    req.add_header("Authorization", f"Bearer {auth_token}")
-    try:
-        with urllib.request.urlopen(req) as response:
-            manifest = json.loads(response.read().decode())
-        return manifest
-    except urllib.error.URLError as e:
-        print(f"Error fetching image manifest: {e}. Retrying in 5 seconds...")
+    headers = {
+        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+        "Authorization": f"Bearer {auth_token}",
+    }
+    max_retries = 3
+    retry_delay = 1
+
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req) as response:
+                manifest = json.loads(response.read().decode())
+            return manifest
+        except urllib.error.URLError as e:
+            print(
+                f"Error fetching image manifest (attempt {attempt + 1}/{max_retries}): {e}"
+            )
+            if attempt < max_retries - 1:
+                sleep_time = retry_delay * (2**attempt) + random.uniform(0, 1)
+                print(f"Retrying in {sleep_time:.2f} seconds...")
+                time.sleep(sleep_time)
+            else:
+                print("Max retries reached. Unable to fetch manifest.")
+                raise
 
 
 def pull_layer(repository: str, digest: str, auth_token: str, save_path: str) -> None:
-    """
-    Pulls a single layer of a Docker image and saves it to the specified path.
-
-    Args:
-        repository (str): The name of the Docker image repository.
-        digest (str): The digest of the layer to be pulled.
-        auth_token (str): The authentication token for accessing the Docker image.
-        save_path (str): The path where the pulled layer will be saved.
-
-    Returns:
-        None
-    """
-    url = f"https://registry-1.docker.io/v2/library/{repository}/blobs/{digest}"
+    url = f"https://registry.hub.docker.com/v2/library/{repository}/blobs/{digest}"
     print("PULL LAYER URL: ", url)
-    print("AUTH TOKEN: ", auth_token)
     headers = {
-        "Authorization": f"Bearer {auth_token.strip()}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-        "Accept-Encoding": "gzip, deflate, br, tar",
+        "Authorization": f"Bearer {auth_token}",
+        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+        "Accept-Encoding": "gzip",
     }
-    req = urllib.request.Request(url, headers=headers)
     try:
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req) as response:
             if response.status != 200:
                 raise Exception(
@@ -100,8 +94,10 @@ def pull_layer(repository: str, digest: str, auth_token: str, save_path: str) ->
             print("RESPONSE STATUS: ", response.status)
             with open(save_path, "wb") as f:
                 f.write(response.read())
+        return  # Success, exit the function
     except urllib.error.URLError as e:
         print(f"Error fetching layer: {e}")
+        raise
 
 
 def pull_layers(
@@ -120,9 +116,11 @@ def pull_layers(
         None
     """
     print("Pulling layers... Manifest: ", manifest)
-    for layer in manifest["fsLayers"]:
-        digest = layer["blobSum"]
-        filename = digest.replace(":", "_")  # Replace ':' with '_' for valid filenames
+    # for layer in manifest["fsLayers"]:
+    for layer in manifest["layers"]:
+        # digest = layer["blobSum"]
+        digest = layer["digest"]
+        filename = digest.replace(":", ":")  # Replace ':' with '_' for valid filenames
         save_path = os.path.join(tmp_dir_name, filename)
         print(f"Pulling layer {digest}...")
         pull_layer(image_name, digest, auth_token, save_path)
